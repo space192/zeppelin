@@ -7,6 +7,10 @@
         "data": {
           "host": "Adresse IP"
         }
+      },
+      "zeroconf_confirm": {
+        "title": "Bowers & Wilkins Zeppelin",
+        "description": "**{name}** a été trouvé sur votre réseau. Voulez-vous le configurer ?"
       }
     },
     "error": {
@@ -14,7 +18,8 @@
       "no_devices": "Aucun appareil trouvé sur l'enceinte."
     },
     "abort": {
-      "already_configured": "Cette enceinte est déjà configurée."
+      "already_configured": "Cette enceinte est déjà configurée.",
+      "cannot_connect": "Impossible de se connecter à l'enceinte découverte."
     }
   }
 }

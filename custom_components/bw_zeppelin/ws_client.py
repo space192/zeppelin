@@ -9,7 +9,6 @@ from collections.abc import Callable
 import aiohttp
 
 from homeassistant.core import HomeAssistant
-from homeassistant.helpers.aiohttp_client import async_get_clientsession
 
 from .const import DEFAULT_PORT, PROPERTY_AUDIOTILE, PROPERTY_AUDIOTILE_ARTWORK
 
@@ -17,6 +16,7 @@ _LOGGER = logging.getLogger(__name__)
 
 RECONNECT_INTERVAL = 10
 MAX_RECONNECT_INTERVAL = 120
+CONNECT_TIMEOUT = aiohttp.ClientTimeout(total=10)
 
 
 class BwZeppelinWebSocket:
@@ -27,7 +27,6 @@ class BwZeppelinWebSocket:
         self._ssl_context = ssl.SSLContext(ssl.PROTOCOL_TLS_CLIENT)
         self._ssl_context.check_hostname = False
         self._ssl_context.verify_mode = ssl.CERT_NONE
-        self._hass: HomeAssistant | None = None
         self._task: asyncio.Task | None = None
         self._stop_event = asyncio.Event()
         self._audiotile_callbacks: list[Callable[[dict], None]] = []
@@ -47,9 +46,8 @@ class BwZeppelinWebSocket:
         return lambda: self._volume_callbacks.remove(callback)
 
     def start(self, hass: HomeAssistant) -> None:
-        self._hass = hass
         self._stop_event.clear()
-        self._task = hass.async_create_task(self._run())
+        self._task = hass.async_create_background_task(self._run(), f"bw_zeppelin_ws_{self._host}")
 
     def stop(self) -> None:
         self._stop_event.set()
@@ -77,22 +75,25 @@ class BwZeppelinWebSocket:
             backoff = min(backoff * 2, MAX_RECONNECT_INTERVAL)
 
     async def _listen(self) -> None:
-        session = async_get_clientsession(self._hass, verify_ssl=False)
-        ws = await session.ws_connect(
-            self._url, ssl=self._ssl_context, heartbeat=30, autoclose=True
-        )
+        session = aiohttp.ClientSession(timeout=CONNECT_TIMEOUT)
         try:
-            _LOGGER.debug("WebSocket connected to %s", self._host)
-            async for msg in ws:
-                if self._stop_event.is_set():
-                    return
-                if msg.type == aiohttp.WSMsgType.TEXT:
-                    self._handle_message(msg.data)
-                elif msg.type in (aiohttp.WSMsgType.CLOSED, aiohttp.WSMsgType.ERROR):
-                    break
+            ws = await session.ws_connect(
+                self._url, ssl=self._ssl_context, heartbeat=30, autoclose=True
+            )
+            try:
+                _LOGGER.debug("WebSocket connected to %s", self._host)
+                async for msg in ws:
+                    if self._stop_event.is_set():
+                        return
+                    if msg.type == aiohttp.WSMsgType.TEXT:
+                        self._handle_message(msg.data)
+                    elif msg.type in (aiohttp.WSMsgType.CLOSED, aiohttp.WSMsgType.ERROR):
+                        break
+            finally:
+                if not ws.closed:
+                    await ws.close()
         finally:
-            if not ws.closed:
-                await ws.close()
+            await session.close()
 
     def _handle_message(self, raw: str) -> None:
         try:

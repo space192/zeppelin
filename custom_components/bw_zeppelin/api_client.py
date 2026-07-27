@@ -123,6 +123,9 @@ class BwZeppelinApiClient:
             {"value": max(0, min(value, 100)), "source": "", "muted": muted},
         )
 
+    async def start_software_update(self) -> None:
+        await self._post_stated("start_software_update", {})
+
     async def send_command(self, command: str) -> None:
         await self._post_stated(
             "send_command",
