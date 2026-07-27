@@ -12,6 +12,9 @@ class BwZeppelinApiError(Exception):
     pass
 
 
+REQUEST_TIMEOUT = aiohttp.ClientTimeout(total=10)
+
+
 class BwZeppelinApiClient:
 
     def __init__(self, session: aiohttp.ClientSession, host: str, node_id: str | None = None) -> None:
@@ -34,7 +37,7 @@ class BwZeppelinApiClient:
     async def _get(self, path: str) -> dict:
         url = f"{self._base_url}{path}"
         try:
-            async with self._session.get(url, ssl=self._ssl_context) as resp:
+            async with self._session.get(url, ssl=self._ssl_context, timeout=REQUEST_TIMEOUT) as resp:
                 resp.raise_for_status()
                 return await resp.json()
         except aiohttp.ClientError as err:
@@ -57,7 +60,7 @@ class BwZeppelinApiClient:
         headers = {"X-Request-Id": str(uuid.uuid4())}
         try:
             async with self._session.post(
-                url, json=payload, headers=headers, ssl=self._ssl_context
+                url, json=payload, headers=headers, ssl=self._ssl_context, timeout=REQUEST_TIMEOUT
             ) as resp:
                 resp.raise_for_status()
                 text = await resp.text()
@@ -94,7 +97,7 @@ class BwZeppelinApiClient:
 
     async def fetch_image(self, url: str) -> tuple[bytes, str]:
         try:
-            async with self._session.get(url, ssl=self._ssl_context) as resp:
+            async with self._session.get(url, ssl=self._ssl_context, timeout=REQUEST_TIMEOUT) as resp:
                 resp.raise_for_status()
                 content_type = resp.content_type or "image/jpeg"
                 return await resp.read(), content_type

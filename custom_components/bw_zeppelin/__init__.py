@@ -6,6 +6,7 @@ import random
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import Platform
 from homeassistant.core import HomeAssistant
+from homeassistant.exceptions import ConfigEntryNotReady
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from homeassistant.helpers.event import async_track_time_change
 
@@ -27,7 +28,10 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         node_id=entry.data[CONF_NODE_ID],
     )
 
-    initial_light_state = await api.get_light_state()
+    try:
+        initial_light_state = await api.get_light_state()
+    except BwZeppelinApiError as err:
+        raise ConfigEntryNotReady(f"Cannot reach speaker at {host}") from err
 
     try:
         device_info = await api.get_device_info()
