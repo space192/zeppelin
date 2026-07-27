@@ -10,12 +10,12 @@ from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from homeassistant.helpers.event import async_track_time_change
 
 from .api_client import BwZeppelinApiClient, BwZeppelinApiError
-from .const import CONF_HOST, CONF_NODE_ID, CONF_SPACE_NAME, DOMAIN
+from .const import CONF_HOST, CONF_NODE_ID, CONF_SPACE_NAME, DOMAIN, PROPERTY_GAIN_BASS, PROPERTY_GAIN_TREBLE
 from .ws_client import BwZeppelinWebSocket
 
 _LOGGER = logging.getLogger(__name__)
 
-PLATFORMS = [Platform.LIGHT, Platform.MEDIA_PLAYER, Platform.SENSOR]
+PLATFORMS = [Platform.LIGHT, Platform.MEDIA_PLAYER, Platform.NUMBER, Platform.SENSOR]
 
 
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
@@ -34,6 +34,13 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     except BwZeppelinApiError:
         _LOGGER.warning("Failed to fetch device info for diagnostics")
         device_info = {}
+
+    initial_eq = {}
+    for prop in (PROPERTY_GAIN_BASS, PROPERTY_GAIN_TREBLE):
+        try:
+            initial_eq[prop] = await api.get_eq(prop)
+        except BwZeppelinApiError:
+            _LOGGER.warning("Failed to fetch initial EQ value for %s", prop)
 
     ws_client = BwZeppelinWebSocket(host)
     ws_client.start(hass)
@@ -78,6 +85,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         "ws_client": ws_client,
         "initial_light_state": initial_light_state,
         "device_info": device_info,
+        "initial_eq": initial_eq,
         "unsub_update_check": unsub,
     }
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)

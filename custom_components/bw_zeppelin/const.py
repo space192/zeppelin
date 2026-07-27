@@ -8,6 +8,9 @@ PROPERTY_AUDIOTILE = "liberty.oobed.audiotile"
 PROPERTY_AUDIOTILE_ARTWORK = "liberty.oobed.audiotile.artwork"
 PROPERTY_DEVICE_INFO = "liberty.oobed.device_info"
 
+PROPERTY_GAIN_TREBLE = "liberty.property.gain.treble"
+PROPERTY_GAIN_BASS = "liberty.property.gain.bass"
+
 CMD_PLAY_PAUSE = "liberty.command.play_pause"
 CMD_NEXT = "liberty.command.next_track"
 CMD_PREVIOUS = "liberty.command.previous_track"

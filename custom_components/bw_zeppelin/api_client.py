@@ -101,6 +101,16 @@ class BwZeppelinApiClient:
         except aiohttp.ClientError as err:
             raise BwZeppelinApiError(f"Failed to fetch image: {err}") from err
 
+    async def get_eq(self, property_name: str) -> int:
+        data = await self._post_stated("get_property", {"property": property_name})
+        return data.get("value", 0)
+
+    async def set_eq(self, property_name: str, value: int) -> None:
+        await self._post_stated(
+            "set_property",
+            {"property": property_name, "value": value},
+        )
+
     async def request_volume(self) -> None:
         await self._post_stated("get_volume", {"source": ""})
 
