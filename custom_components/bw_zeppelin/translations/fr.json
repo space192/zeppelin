@@ -1,0 +1,20 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Bowers & Wilkins Zeppelin",
+        "description": "Entrez l'adresse IP de votre enceinte Bowers & Wilkins.",
+        "data": {
+          "host": "Adresse IP"
+        }
+      }
+    },
+    "error": {
+      "cannot_connect": "Impossible de se connecter à l'enceinte. Vérifiez l'adresse IP et que l'enceinte est sur le même réseau.",
+      "no_devices": "Aucun appareil trouvé sur l'enceinte."
+    },
+    "abort": {
+      "already_configured": "Cette enceinte est déjà configurée."
+    }
+  }
+}
