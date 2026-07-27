@@ -31,7 +31,7 @@ async def async_setup_entry(
     hass: HomeAssistant, entry: ConfigEntry, async_add_entities: AddEntitiesCallback
 ) -> None:
     data = hass.data[DOMAIN][entry.entry_id]
-    async_add_entities([BwZeppelinLight(data["api"], data["initial_state"], entry)])
+    async_add_entities([BwZeppelinLight(data["api"], data["initial_light_state"], entry)])
 
 
 class BwZeppelinLight(LightEntity):

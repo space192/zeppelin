@@ -5,7 +5,7 @@ import uuid
 
 import aiohttp
 
-from .const import DEFAULT_PORT, PROPERTY_LIGHT_STATE, STATED_CHANNEL
+from .const import DEFAULT_PORT, PROPERTY_DEVICE_INFO, PROPERTY_LIGHT_STATE, STATED_CHANNEL
 
 
 class BwZeppelinApiError(Exception):
@@ -82,8 +82,18 @@ class BwZeppelinApiClient:
         data = await self._post_stated("get_property", {"property": PROPERTY_LIGHT_STATE})
         return data.get("value", {})
 
+    async def get_device_info(self) -> dict:
+        data = await self._post_stated("get_property", {"property": PROPERTY_DEVICE_INFO})
+        return data.get("value", {})
+
     async def check_software_update(self) -> dict:
         return await self._post_stated("check_software_update", {})
+
+    async def send_command(self, command: str) -> None:
+        await self._post_stated(
+            "send_command",
+            {"command": command},
+        )
 
     async def set_light_state(
         self,
