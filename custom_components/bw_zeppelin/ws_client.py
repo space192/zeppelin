@@ -9,13 +9,14 @@ from collections.abc import Callable
 import aiohttp
 
 from homeassistant.core import HomeAssistant
+from homeassistant.helpers.aiohttp_client import async_get_clientsession
 
 from .const import DEFAULT_PORT, PROPERTY_AUDIOTILE, PROPERTY_AUDIOTILE_ARTWORK
 
 _LOGGER = logging.getLogger(__name__)
 
-RECONNECT_INTERVAL = 5
-MAX_RECONNECT_INTERVAL = 60
+RECONNECT_INTERVAL = 10
+MAX_RECONNECT_INTERVAL = 120
 
 
 class BwZeppelinWebSocket:
@@ -26,6 +27,7 @@ class BwZeppelinWebSocket:
         self._ssl_context = ssl.SSLContext(ssl.PROTOCOL_TLS_CLIENT)
         self._ssl_context.check_hostname = False
         self._ssl_context.verify_mode = ssl.CERT_NONE
+        self._hass: HomeAssistant | None = None
         self._task: asyncio.Task | None = None
         self._stop_event = asyncio.Event()
         self._audiotile_callbacks: list[Callable[[dict], None]] = []
@@ -45,6 +47,7 @@ class BwZeppelinWebSocket:
         return lambda: self._volume_callbacks.remove(callback)
 
     def start(self, hass: HomeAssistant) -> None:
+        self._hass = hass
         self._stop_event.clear()
         self._task = hass.async_create_task(self._run())
 
@@ -59,16 +62,13 @@ class BwZeppelinWebSocket:
             try:
                 await self._listen()
                 backoff = RECONNECT_INTERVAL
-            except (aiohttp.ClientError, asyncio.TimeoutError, OSError) as err:
-                _LOGGER.debug("WebSocket connection error: %s", err)
             except asyncio.CancelledError:
                 return
             except Exception:
-                _LOGGER.exception("Unexpected WebSocket error")
+                _LOGGER.debug("WebSocket error, reconnecting in %ss", backoff, exc_info=True)
 
             if self._stop_event.is_set():
                 return
-            _LOGGER.debug("Reconnecting in %s seconds", backoff)
             try:
                 await asyncio.wait_for(self._stop_event.wait(), timeout=backoff)
                 return
@@ -77,19 +77,22 @@ class BwZeppelinWebSocket:
             backoff = min(backoff * 2, MAX_RECONNECT_INTERVAL)
 
     async def _listen(self) -> None:
-        session = aiohttp.ClientSession()
+        session = async_get_clientsession(self._hass, verify_ssl=False)
+        ws = await session.ws_connect(
+            self._url, ssl=self._ssl_context, heartbeat=30, autoclose=True
+        )
         try:
-            async with session.ws_connect(self._url, ssl=self._ssl_context) as ws:
-                _LOGGER.debug("WebSocket connected to %s", self._host)
-                async for msg in ws:
-                    if self._stop_event.is_set():
-                        return
-                    if msg.type == aiohttp.WSMsgType.TEXT:
-                        self._handle_message(msg.data)
-                    elif msg.type in (aiohttp.WSMsgType.CLOSED, aiohttp.WSMsgType.ERROR):
-                        break
+            _LOGGER.debug("WebSocket connected to %s", self._host)
+            async for msg in ws:
+                if self._stop_event.is_set():
+                    return
+                if msg.type == aiohttp.WSMsgType.TEXT:
+                    self._handle_message(msg.data)
+                elif msg.type in (aiohttp.WSMsgType.CLOSED, aiohttp.WSMsgType.ERROR):
+                    break
         finally:
-            await session.close()
+            if not ws.closed:
+                await ws.close()
 
     def _handle_message(self, raw: str) -> None:
         try:
