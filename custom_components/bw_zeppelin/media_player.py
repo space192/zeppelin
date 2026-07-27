@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import datetime as dt
+import hashlib
 import logging
 from typing import Any
 
@@ -39,6 +40,8 @@ class BwZeppelinMediaPlayer(MediaPlayerEntity):
         | MediaPlayerEntityFeature.PLAY
         | MediaPlayerEntityFeature.NEXT_TRACK
         | MediaPlayerEntityFeature.PREVIOUS_TRACK
+        | MediaPlayerEntityFeature.VOLUME_SET
+        | MediaPlayerEntityFeature.VOLUME_MUTE
     )
 
     def __init__(
@@ -49,9 +52,17 @@ class BwZeppelinMediaPlayer(MediaPlayerEntity):
     ) -> None:
         self._api = api
         self._ws_client = ws_client
-        self._unsub_ws: Any = None
+        self._unsub_ws_tile: Any = None
+        self._unsub_ws_art: Any = None
+        self._unsub_ws_vol: Any = None
 
         self._tile: dict = {}
+        self._last_track_key: str = ""
+        self._artwork_url: str | None = None
+        self._artwork_bytes: bytes | None = None
+        self._artwork_content_type: str = "image/jpeg"
+        self._volume: int = 0
+        self._muted: bool = False
 
         node_id = entry.data[CONF_NODE_ID]
         self._attr_unique_id = f"{node_id}_media_player"
@@ -65,17 +76,81 @@ class BwZeppelinMediaPlayer(MediaPlayerEntity):
         }
 
     async def async_added_to_hass(self) -> None:
-        self._unsub_ws = self._ws_client.register_audiotile_callback(self._on_audiotile)
+        self._unsub_ws_tile = self._ws_client.register_audiotile_callback(self._on_audiotile)
+        self._unsub_ws_art = self._ws_client.register_artwork_callback(self._on_artwork)
+        self._unsub_ws_vol = self._ws_client.register_volume_callback(self._on_volume)
+        self.hass.async_create_task(self._request_initial_volume())
 
     async def async_will_remove_from_hass(self) -> None:
-        if self._unsub_ws:
-            self._unsub_ws()
+        if self._unsub_ws_tile:
+            self._unsub_ws_tile()
+        if self._unsub_ws_art:
+            self._unsub_ws_art()
+        if self._unsub_ws_vol:
+            self._unsub_ws_vol()
+
+    async def _request_initial_volume(self) -> None:
+        try:
+            await self._api.request_volume()
+        except BwZeppelinApiError:
+            _LOGGER.debug("Failed to request initial volume")
+
+    def _track_key(self, tile: dict) -> str:
+        return f"{tile.get('title', '')}|{tile.get('artist', '')}|{tile.get('album', '')}"
 
     @callback
     def _on_audiotile(self, tile: dict) -> None:
+        track_key = self._track_key(tile)
+        track_changed = track_key != self._last_track_key
         self._tile = tile
+        self._last_track_key = track_key
         self._attr_media_position_updated_at = dt.datetime.now(dt.timezone.utc)
+
+        if track_changed:
+            self._artwork_bytes = None
+            self._artwork_url = None
+            self.hass.async_create_task(self._request_artwork())
+
         self.async_write_ha_state()
+
+    @callback
+    def _on_artwork(self, artwork: dict) -> None:
+        uri = artwork.get("artworkURI", "")
+        if uri:
+            self._artwork_url = uri
+            self.hass.async_create_task(self._fetch_artwork(uri))
+
+    @callback
+    def _on_volume(self, data: dict) -> None:
+        if "source" in data and data["source"]:
+            return
+        self._volume = data.get("value", self._volume)
+        self._muted = data.get("muted", self._muted)
+        self.async_write_ha_state()
+
+    async def _request_artwork(self) -> None:
+        try:
+            await self._api.request_artwork()
+        except BwZeppelinApiError:
+            _LOGGER.debug("Failed to request artwork")
+
+    async def _fetch_artwork(self, url: str) -> None:
+        try:
+            self._artwork_bytes, self._artwork_content_type = await self._api.fetch_image(url)
+            self.async_write_ha_state()
+        except BwZeppelinApiError:
+            _LOGGER.debug("Failed to fetch artwork from %s", url)
+
+    @property
+    def media_image_hash(self) -> str | None:
+        if self._artwork_bytes:
+            return hashlib.md5(self._artwork_bytes).hexdigest()
+        return None
+
+    async def async_get_media_image(self) -> tuple[bytes | None, str | None]:
+        if self._artwork_bytes:
+            return self._artwork_bytes, self._artwork_content_type
+        return None, None
 
     @property
     def state(self) -> MediaPlayerState:
@@ -114,8 +189,29 @@ class BwZeppelinMediaPlayer(MediaPlayerEntity):
         return None
 
     @property
+    def volume_level(self) -> float:
+        return self._volume / 100.0
+
+    @property
+    def is_volume_muted(self) -> bool:
+        return self._muted
+
+    @property
     def source(self) -> str | None:
         return self._tile.get("serviceName") or None
+
+    async def async_set_volume_level(self, volume: float) -> None:
+        value = int(volume * 100)
+        try:
+            await self._api.set_volume(value, self._muted)
+        except BwZeppelinApiError:
+            _LOGGER.exception("Failed to set volume")
+
+    async def async_mute_volume(self, mute: bool) -> None:
+        try:
+            await self._api.set_volume(self._volume, mute)
+        except BwZeppelinApiError:
+            _LOGGER.exception("Failed to mute volume")
 
     async def async_media_play(self) -> None:
         try:

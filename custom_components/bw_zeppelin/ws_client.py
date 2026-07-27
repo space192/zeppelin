@@ -10,7 +10,7 @@ import aiohttp
 
 from homeassistant.core import HomeAssistant
 
-from .const import DEFAULT_PORT, PROPERTY_AUDIOTILE
+from .const import DEFAULT_PORT, PROPERTY_AUDIOTILE, PROPERTY_AUDIOTILE_ARTWORK
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -29,10 +29,20 @@ class BwZeppelinWebSocket:
         self._task: asyncio.Task | None = None
         self._stop_event = asyncio.Event()
         self._audiotile_callbacks: list[Callable[[dict], None]] = []
+        self._artwork_callbacks: list[Callable[[dict], None]] = []
+        self._volume_callbacks: list[Callable[[dict], None]] = []
 
     def register_audiotile_callback(self, callback: Callable[[dict], None]) -> Callable[[], None]:
         self._audiotile_callbacks.append(callback)
         return lambda: self._audiotile_callbacks.remove(callback)
+
+    def register_artwork_callback(self, callback: Callable[[dict], None]) -> Callable[[], None]:
+        self._artwork_callbacks.append(callback)
+        return lambda: self._artwork_callbacks.remove(callback)
+
+    def register_volume_callback(self, callback: Callable[[dict], None]) -> Callable[[], None]:
+        self._volume_callbacks.append(callback)
+        return lambda: self._volume_callbacks.remove(callback)
 
     def start(self, hass: HomeAssistant) -> None:
         self._stop_event.clear()
@@ -95,13 +105,31 @@ class BwZeppelinWebSocket:
         )
         name = method.get("name")
         params = method.get("parameters", {})
+        prop = params.get("property", "")
 
-        if name == "property_changed" and params.get("property") == PROPERTY_AUDIOTILE:
+        if prop == PROPERTY_AUDIOTILE and name in ("property_changed", "success"):
             value = params.get("value", {})
             tile = next(iter(value.values()), None) if isinstance(value, dict) else None
             if tile:
-                for callback in self._audiotile_callbacks:
+                for cb in self._audiotile_callbacks:
                     try:
-                        callback(tile)
+                        cb(tile)
                     except Exception:
                         _LOGGER.exception("Error in audiotile callback")
+
+        elif prop == PROPERTY_AUDIOTILE_ARTWORK and name in ("property_changed", "success"):
+            value = params.get("value", {})
+            artwork = next(iter(value.values()), None) if isinstance(value, dict) else None
+            if artwork:
+                for cb in self._artwork_callbacks:
+                    try:
+                        cb(artwork)
+                    except Exception:
+                        _LOGGER.exception("Error in artwork callback")
+
+        elif name in ("volume_changed", "success") and "value" in params and "muted" in params:
+            for cb in self._volume_callbacks:
+                try:
+                    cb(params)
+                except Exception:
+                    _LOGGER.exception("Error in volume callback")

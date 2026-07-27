@@ -5,6 +5,7 @@ SCAN_INTERVAL_SECONDS = 30
 STATED_CHANNEL = "com.bowerswilkins.stated.service+provider"
 PROPERTY_LIGHT_STATE = "liberty.lights.hardware-downlight"
 PROPERTY_AUDIOTILE = "liberty.oobed.audiotile"
+PROPERTY_AUDIOTILE_ARTWORK = "liberty.oobed.audiotile.artwork"
 PROPERTY_DEVICE_INFO = "liberty.oobed.device_info"
 
 CMD_PLAY_PAUSE = "liberty.command.play_pause"

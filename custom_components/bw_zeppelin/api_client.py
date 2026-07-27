@@ -5,7 +5,7 @@ import uuid
 
 import aiohttp
 
-from .const import DEFAULT_PORT, PROPERTY_DEVICE_INFO, PROPERTY_LIGHT_STATE, STATED_CHANNEL
+from .const import DEFAULT_PORT, PROPERTY_AUDIOTILE_ARTWORK, PROPERTY_DEVICE_INFO, PROPERTY_LIGHT_STATE, STATED_CHANNEL
 
 
 class BwZeppelinApiError(Exception):
@@ -82,12 +82,33 @@ class BwZeppelinApiClient:
         data = await self._post_stated("get_property", {"property": PROPERTY_LIGHT_STATE})
         return data.get("value", {})
 
+    async def request_artwork(self) -> None:
+        await self._post_stated("get_property", {"property": PROPERTY_AUDIOTILE_ARTWORK})
+
     async def get_device_info(self) -> dict:
         data = await self._post_stated("get_property", {"property": PROPERTY_DEVICE_INFO})
         return data.get("value", {})
 
     async def check_software_update(self) -> dict:
         return await self._post_stated("check_software_update", {})
+
+    async def fetch_image(self, url: str) -> tuple[bytes, str]:
+        try:
+            async with self._session.get(url, ssl=self._ssl_context) as resp:
+                resp.raise_for_status()
+                content_type = resp.content_type or "image/jpeg"
+                return await resp.read(), content_type
+        except aiohttp.ClientError as err:
+            raise BwZeppelinApiError(f"Failed to fetch image: {err}") from err
+
+    async def request_volume(self) -> None:
+        await self._post_stated("get_volume", {"source": ""})
+
+    async def set_volume(self, value: int, muted: bool) -> None:
+        await self._post_stated(
+            "set_volume",
+            {"value": max(0, min(value, 100)), "source": "", "muted": muted},
+        )
 
     async def send_command(self, command: str) -> None:
         await self._post_stated(
