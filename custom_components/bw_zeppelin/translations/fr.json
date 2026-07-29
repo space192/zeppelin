@@ -21,5 +21,15 @@
       "already_configured": "Cette enceinte est déjà configurée.",
       "cannot_connect": "Impossible de se connecter à l'enceinte découverte."
     }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Bowers & Wilkins Zeppelin",
+        "data": {
+          "led_keepalive_minutes": "Intervalle de maintien LED (minutes, 0 pour désactiver)"
+        }
+      }
+    }
   }
 }

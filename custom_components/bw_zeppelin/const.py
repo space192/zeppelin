@@ -15,6 +15,9 @@ CMD_PLAY_PAUSE = "liberty.command.play_pause"
 CMD_NEXT = "liberty.command.next_track"
 CMD_PREVIOUS = "liberty.command.previous_track"
 
+CONF_LED_KEEPALIVE = "led_keepalive_minutes"
+DEFAULT_LED_KEEPALIVE = 5
+
 CONF_HOST = "host"
 CONF_NODE_ID = "node_id"
 CONF_SPACE_NAME = "space_name"

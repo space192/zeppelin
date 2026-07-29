@@ -9,11 +9,28 @@ from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from homeassistant.helpers.service_info.zeroconf import ZeroconfServiceInfo
 
 from .api_client import BwZeppelinApiClient, BwZeppelinApiError
-from .const import CONF_FW_VERSION, CONF_HOST, CONF_MODEL, CONF_NODE_ID, CONF_SPACE_NAME, DOMAIN
+from .const import CONF_FW_VERSION, CONF_HOST, CONF_LED_KEEPALIVE, CONF_MODEL, CONF_NODE_ID, CONF_SPACE_NAME, DEFAULT_LED_KEEPALIVE, DOMAIN
 
 _LOGGER = logging.getLogger(__name__)
 
 DATA_SCHEMA = vol.Schema({vol.Required(CONF_HOST): str})
+
+
+class BwZeppelinOptionsFlow(config_entries.OptionsFlow):
+
+    async def async_step_init(self, user_input=None):
+        if user_input is not None:
+            return self.async_create_entry(data=user_input)
+
+        current = self.config_entry.options.get(CONF_LED_KEEPALIVE, DEFAULT_LED_KEEPALIVE)
+        return self.async_show_form(
+            step_id="init",
+            data_schema=vol.Schema({
+                vol.Required(CONF_LED_KEEPALIVE, default=current): vol.All(
+                    int, vol.Range(min=0, max=30)
+                ),
+            }),
+        )
 
 
 class BwZeppelinConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
@@ -22,6 +39,10 @@ class BwZeppelinConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
 
     def __init__(self) -> None:
         self._discovered: dict | None = None
+
+    @staticmethod
+    def async_get_options_flow(config_entry):
+        return BwZeppelinOptionsFlow()
 
     async def _validate_and_create(self, host: str) -> dict | None:
         session = async_get_clientsession(self.hass, verify_ssl=False)

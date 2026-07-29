@@ -21,5 +21,15 @@
       "already_configured": "This speaker is already configured.",
       "cannot_connect": "Cannot connect to the discovered speaker."
     }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Bowers & Wilkins Zeppelin",
+        "data": {
+          "led_keepalive_minutes": "LED keep-alive interval (minutes, 0 to disable)"
+        }
+      }
+    }
   }
 }
