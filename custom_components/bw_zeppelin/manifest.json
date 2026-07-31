@@ -7,7 +7,7 @@
   "integration_type": "device",
   "iot_class": "local_push",
   "requirements": [],
-  "version": "0.4.2",
+  "version": "0.4.3",
   "zeroconf": [
     {"type": "_eva-mesh._tcp.local.", "properties": {"mid": "eva.mesh*"}}
   ]
