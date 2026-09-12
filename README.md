@@ -28,6 +28,18 @@ Exposed as a standard `light` entity with:
 - RGB color picker (full 0-255 range per channel)
 - Brightness slider (0-100%)
 
+### Audio Output Delay (AirPlay 2 sync fix)
+
+Exposed as a `number` entity (**Audio Output Delay**, in milliseconds, −1000 to +1000, step 10).
+
+If your Zeppelin plays a fixed amount **ahead of** your other speakers in a mixed-brand AirPlay 2 group, the speaker over-reports its output latency and the sender ships audio too early. This entity writes the speaker's undocumented `audioOutputDelay` setting (via the local StreamSDK API on port 80): a **negative** value lowers the reported latency so the sender delays the audio and it lands back in sync. The current value is read on startup and shown in Home Assistant.
+
+- **Units**: the entity is in milliseconds for readability; the speaker API stores microseconds.
+- **Persists** across a full power cycle (verified). Set to `0` to revert to factory behaviour.
+- **Applies at stream start**, not mid-playback — change the value, then stop and restart playback to hear the effect.
+- Only fixes a *consistent fixed offset* (early or late). It will not correct random Wi-Fi drift.
+- Tune by ear: bisect in 10 ms steps, restart playback, and listen. Many users land around **−150 ms**; the ideal value depends on your speaker mix.
+
 ### Firmware Update Check
 
 Checks for firmware updates once per night at a random time between 3:00 and 5:59 AM. If an update is available, a persistent notification is created in Home Assistant with the version number and release notes.
@@ -36,7 +48,9 @@ Checks for firmware updates once per night at a random time between 3:00 and 5:5
 
 The integration communicates with the speaker over its local REST API on port **42425** (HTTPS with self-signed certificate). Devices are discovered via the speaker's mesh node list.
 
-The protocol is a JSON-RPC-like system called "StateD", sent to:
+The audio output delay setting uses a **second, separate HTTP API on port 80** (the StreamSDK API, plain HTTP), at `/api/getData` and `/api/setData`. This API is independent of the StateD protocol and is only used for the `audioOutputDelay` setting.
+
+The StateD protocol is a JSON-RPC-like system, sent to:
 
 ```
 POST /mesh/node/{nodeId}/channel/com.bowerswilkins.stated.service+provider/message
@@ -81,7 +95,7 @@ Copy `custom_components/bw_zeppelin` to your Home Assistant `custom_components/`
 
 - The speaker uses a self-signed TLS certificate — SSL verification is disabled for local communication.
 - The Splice app may not discover speakers connected via Ethernet. This integration works fine over Ethernet.
-- Only LED control and firmware update checks are implemented. Volume, playback, and source control are possible via the same API but not yet exposed.
+- LED control, EQ, media player, and firmware update checks are implemented. Volume, playback, and source control are possible via the same API but not yet exposed.
 
 ## API Reference
 

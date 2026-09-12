@@ -11,6 +11,14 @@ PROPERTY_DEVICE_INFO = "liberty.oobed.device_info"
 PROPERTY_GAIN_TREBLE = "liberty.property.gain.treble"
 PROPERTY_GAIN_BASS = "liberty.property.gain.bass"
 
+# Port-80 StreamSDK API (separate from StateD on port 42425).
+# Used for the undocumented audioOutputDelay setting that fixes
+# AirPlay 2 group sync on the Zeppelin.
+STREAMSDK_PORT = 80
+SETTING_AUDIO_OUTPUT_DELAY = "settings:/system/audioOutputDelay"
+# Default reported by the speaker when never changed.
+DEFAULT_AUDIO_OUTPUT_DELAY_US = 0
+
 CMD_PLAY_PAUSE = "liberty.command.play_pause"
 CMD_NEXT = "liberty.command.next_track"
 CMD_PREVIOUS = "liberty.command.previous_track"

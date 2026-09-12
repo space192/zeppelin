@@ -1,11 +1,23 @@
 from __future__ import annotations
 
+import json
+import logging
 import ssl
 import uuid
 
 import aiohttp
 
-from .const import DEFAULT_PORT, PROPERTY_AUDIOTILE_ARTWORK, PROPERTY_DEVICE_INFO, PROPERTY_LIGHT_STATE, STATED_CHANNEL
+from .const import (
+    DEFAULT_PORT,
+    PROPERTY_AUDIOTILE_ARTWORK,
+    PROPERTY_DEVICE_INFO,
+    PROPERTY_LIGHT_STATE,
+    SETTING_AUDIO_OUTPUT_DELAY,
+    STREAMSDK_PORT,
+    STATED_CHANNEL,
+)
+
+_LOGGER = logging.getLogger(__name__)
 
 
 class BwZeppelinApiError(Exception):
@@ -22,6 +34,10 @@ class BwZeppelinApiClient:
         self._host = host
         self._node_id = node_id
         self._base_url = f"https://{host}:{DEFAULT_PORT}"
+        # The StreamSDK HTTP API (getData/setData) lives on plain HTTP port 80,
+        # separate from the StateD API on https port 42425. It exposes the
+        # undocumented audioOutputDelay setting used to fix AirPlay 2 sync.
+        self._streamsdk_url = f"http://{host}:{STREAMSDK_PORT}"
         self._ssl_context = ssl.SSLContext(ssl.PROTOCOL_TLS_CLIENT)
         self._ssl_context.check_hostname = False
         self._ssl_context.verify_mode = ssl.CERT_NONE
@@ -73,7 +89,71 @@ class BwZeppelinApiClient:
         except aiohttp.ClientError as err:
             raise BwZeppelinApiError(f"StateD request '{method}' failed: {err}") from err
 
-    async def get_version(self) -> str:
+    async def _streamsdk_get(self, path: str, roles: str = "value") -> dict:
+        """GET on the port-80 StreamSDK API: /api/getData?path=...&roles=..."""
+        url = f"{self._streamsdk_url}/api/getData"
+        params = {"path": path, "roles": roles}
+        try:
+            async with self._session.get(url, params=params, timeout=REQUEST_TIMEOUT) as resp:
+                resp.raise_for_status()
+                return await resp.json(content_type=None)
+        except aiohttp.ClientError as err:
+            raise BwZeppelinApiError(f"StreamSDK getData '{path}' failed: {err}") from err
+
+    @staticmethod
+    def _streamsdk_check_error(data: object, path: str) -> None:
+        """Raise if the StreamSDK API returned an error envelope."""
+        if isinstance(data, dict) and "error" in data:
+            raise BwZeppelinApiError(
+                f"StreamSDK '{path}' error: {data['error'].get('message', 'unknown error')}"
+            )
+
+    async def _streamsdk_set(self, path: str, role: str, value: dict) -> dict:
+        """Write on the port-80 StreamSDK API: /api/setData?path=...&role=...&value=...
+
+        The speaker accepts this as a GET with URL-encoded query params (matching
+        `curl -G ... --data-urlencode`); we use GET for parity with the known-good
+        invocation.
+        """
+        url = f"{self._streamsdk_url}/api/setData"
+        params = {"path": path, "role": role, "value": json.dumps(value)}
+        try:
+            async with self._session.get(url, params=params, timeout=REQUEST_TIMEOUT) as resp:
+                resp.raise_for_status()
+                text = await resp.text()
+                if not text:
+                    return {}
+                return await resp.json(content_type=None)
+        except aiohttp.ClientError as err:
+            raise BwZeppelinApiError(f"StreamSDK setData '{path}' failed: {err}") from err
+
+    async def get_audio_output_delay(self) -> int:
+        """Read audioOutputDelay in microseconds (may be negative)."""
+        data = await self._streamsdk_get(SETTING_AUDIO_OUTPUT_DELAY, roles="value")
+        self._streamsdk_check_error(data, SETTING_AUDIO_OUTPUT_DELAY)
+        # Observed response shape with roles=value: a list wrapping the typed value:
+        #   [{"type": "i64_", "i64_": 0}]
+        if isinstance(data, list):
+            for item in data:
+                if isinstance(item, dict) and "i64_" in item:
+                    return int(item["i64_"])
+            return 0
+        if isinstance(data, dict):
+            value = data.get("value", {})
+            if isinstance(value, dict):
+                return int(value.get("i64_", 0))
+            if isinstance(value, (int, float)):
+                return int(value)
+        return 0
+
+    async def set_audio_output_delay(self, microseconds: int) -> None:
+        """Write audioOutputDelay in microseconds (negative pulls the speaker back into sync)."""
+        data = await self._streamsdk_set(
+            SETTING_AUDIO_OUTPUT_DELAY,
+            role="value",
+            value={"type": "i64_", "i64_": int(microseconds)},
+        )
+        self._streamsdk_check_error(data, SETTING_AUDIO_OUTPUT_DELAY)
         data = await self._get("/software/version")
         return data.get("version", "unknown")
 

@@ -9,7 +9,7 @@ from homeassistant.exceptions import ConfigEntryNotReady
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 
 from .api_client import BwZeppelinApiClient, BwZeppelinApiError
-from .const import CONF_HOST, CONF_NODE_ID, CONF_SPACE_NAME, DOMAIN, PROPERTY_GAIN_BASS, PROPERTY_GAIN_TREBLE
+from .const import CONF_HOST, CONF_NODE_ID, CONF_SPACE_NAME, DEFAULT_AUDIO_OUTPUT_DELAY_US, DOMAIN, PROPERTY_GAIN_BASS, PROPERTY_GAIN_TREBLE
 from .ws_client import BwZeppelinWebSocket
 
 _LOGGER = logging.getLogger(__name__)
@@ -44,6 +44,12 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         except BwZeppelinApiError:
             _LOGGER.warning("Failed to fetch initial EQ value for %s", prop)
 
+    initial_audio_output_delay = DEFAULT_AUDIO_OUTPUT_DELAY_US
+    try:
+        initial_audio_output_delay = await api.get_audio_output_delay()
+    except BwZeppelinApiError:
+        _LOGGER.warning("Failed to fetch initial audio output delay")
+
     ws_client = BwZeppelinWebSocket(host)
     ws_client.start(hass)
 
@@ -53,6 +59,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         "initial_light_state": initial_light_state,
         "device_info": device_info,
         "initial_eq": initial_eq,
+        "initial_audio_output_delay": initial_audio_output_delay,
     }
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
     return True
