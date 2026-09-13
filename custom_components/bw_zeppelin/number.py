@@ -24,8 +24,7 @@ EQ_CONTROLS = [
 # AirPlay 2 groups (see README).
 AUDIO_OUTPUT_DELAY_MIN_MS = -1000
 AUDIO_OUTPUT_DELAY_MAX_MS = 1000
-AUDIO_OUTPUT_DELAY_STEP_MS = 10
-AUDIO_OUTPUT_DELAY_FINE_STEP_MS = 1
+AUDIO_OUTPUT_DELAY_STEP_MS = 1
 
 
 async def async_setup_entry(
@@ -40,8 +39,7 @@ async def async_setup_entry(
         entities.append(BwZeppelinEQ(api, entry, ctrl, raw))
 
     initial_delay_us = data.get("initial_audio_output_delay", DEFAULT_AUDIO_OUTPUT_DELAY_US)
-    entities.append(BwZeppelinAudioOutputDelaySlider(api, entry, initial_delay_us))
-    entities.append(BwZeppelinAudioOutputDelayFine(api, entry, initial_delay_us))
+    entities.append(BwZeppelinAudioOutputDelay(api, entry, initial_delay_us))
     async_add_entities(entities)
 
 
@@ -96,19 +94,20 @@ class BwZeppelinEQ(NumberEntity):
 
 
 class BwZeppelinAudioOutputDelay(NumberEntity):
-    """Shared base for the audio output delay entities.
+    """Audio output delay in milliseconds (1 ms steps, box input).
 
-    Home Assistant number entities expose a single input mode (slider OR box),
-    so we provide two entities over the same setting: a coarse slider (10 ms)
-    and a fine box input (1 ms). Both read/write the same speaker setting and
-    stay in sync because they share this base.
+    Writes the speaker's undocumented audioOutputDelay setting via the local
+    StreamSDK API on port 80. A negative value lowers the reported output
+    latency so AirPlay 2 senders delay the audio and it lands back in sync.
     """
 
     _attr_has_entity_name = True
     _attr_entity_category = EntityCategory.CONFIG
     _attr_native_min_value = AUDIO_OUTPUT_DELAY_MIN_MS
     _attr_native_max_value = AUDIO_OUTPUT_DELAY_MAX_MS
+    _attr_native_step = AUDIO_OUTPUT_DELAY_STEP_MS
     _attr_native_unit_of_measurement = "ms"
+    _attr_mode = NumberMode.BOX
     _attr_icon = "mdi:timer-sync-outline"
 
     def __init__(
@@ -120,6 +119,8 @@ class BwZeppelinAudioOutputDelay(NumberEntity):
         self._api = api
         self._delay_us = initial_delay_us
         node_id = entry.data[CONF_NODE_ID]
+        self._attr_name = "Audio Output Delay"
+        self._attr_unique_id = f"{node_id}_audio_output_delay"
         model_type = entry.data.get(CONF_MODEL, "unknown")
         self._attr_device_info = {
             "identifiers": {(DOMAIN, node_id)},
@@ -142,30 +143,3 @@ class BwZeppelinAudioOutputDelay(NumberEntity):
             _LOGGER.exception("Failed to set %s", self._attr_name)
             return
         self.async_write_ha_state()
-
-
-class BwZeppelinAudioOutputDelaySlider(BwZeppelinAudioOutputDelay):
-    """Coarse slider for quick adjustments (10 ms steps)."""
-
-    _attr_native_step = AUDIO_OUTPUT_DELAY_STEP_MS
-    _attr_mode = NumberMode.SLIDER
-
-    def __init__(self, api: BwZeppelinApiClient, entry: ConfigEntry, initial_delay_us: int) -> None:
-        super().__init__(api, entry, initial_delay_us)
-        node_id = entry.data[CONF_NODE_ID]
-        self._attr_name = "Audio Output Delay"
-        self._attr_unique_id = f"{node_id}_audio_output_delay"
-
-
-class BwZeppelinAudioOutputDelayFine(BwZeppelinAudioOutputDelay):
-    """Fine-grained box input for exact values (1 ms steps, +/-1)."""
-
-    _attr_native_step = AUDIO_OUTPUT_DELAY_FINE_STEP_MS
-    _attr_mode = NumberMode.BOX
-    _attr_icon = "mdi:tune-variant"
-
-    def __init__(self, api: BwZeppelinApiClient, entry: ConfigEntry, initial_delay_us: int) -> None:
-        super().__init__(api, entry, initial_delay_us)
-        node_id = entry.data[CONF_NODE_ID]
-        self._attr_name = "Audio Output Delay (Fine)"
-        self._attr_unique_id = f"{node_id}_audio_output_delay_fine"

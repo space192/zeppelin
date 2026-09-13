@@ -30,20 +30,15 @@ Exposed as a standard `light` entity with:
 
 ### Audio Output Delay (AirPlay 2 sync fix)
 
-Exposed as two `number` entities over the same setting (milliseconds, −1000 to +1000):
+Exposed as a `number` entity (**Audio Output Delay**, milliseconds, −1000 to +1000, 1 ms steps, text input).
 
-- **Audio Output Delay** — coarse **slider**, 10 ms steps, for quick adjustment
-- **Audio Output Delay (Fine)** — **text input**, 1 ms steps, for exact +1/−1 tuning
+If your Zeppelin plays a fixed amount **ahead of** your other speakers in a mixed-brand AirPlay 2 group, the speaker over-reports its output latency and the sender ships audio too early. This entity writes the speaker's undocumented `audioOutputDelay` setting (via the local StreamSDK API on port 80): a **negative** value lowers the reported latency so the sender delays the audio and it lands back in sync. The current value is read on startup and shown in Home Assistant.
 
-Home Assistant number entities can only be a slider *or* a text box, so both are exposed over the single `audioOutputDelay` setting and stay in sync.
-
-If your Zeppelin plays a fixed amount **ahead of** your other speakers in a mixed-brand AirPlay 2 group, the speaker over-reports its output latency and the sender ships audio too early. These entities write the speaker's undocumented `audioOutputDelay` setting (via the local StreamSDK API on port 80): a **negative** value lowers the reported latency so the sender delays the audio and it lands back in sync. The current value is read on startup and shown in Home Assistant.
-
-- **Units**: the entities are in milliseconds for readability; the speaker API stores microseconds.
+- **Units**: the entity is in milliseconds for readability; the speaker API stores microseconds.
 - **Persists** across a full power cycle (verified). Set to `0` to revert to factory behaviour.
 - **Applies at stream start**, not mid-playback — change the value, then stop and restart playback to hear the effect.
 - Only fixes a *consistent fixed offset* (early or late). It will not correct random Wi-Fi drift.
-- Tune by ear: use the slider to get close, then the fine input to nail the exact value. Many users land around **−150 ms**; the ideal value depends on your speaker mix.
+- Tune by ear: type a value, restart playback, and listen. Many users land around **−150 ms**; the ideal value depends on your speaker mix.
 
 ### Firmware Update Check
 
