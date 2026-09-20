@@ -159,6 +159,15 @@ class BwZeppelinApiClient:
         data = await self._get("/software/version")
         return data.get("version", "unknown")
 
+    async def get_local_node_id(self) -> str | None:
+        """Node id of the speaker at this host.
+
+        `get_nodes()` lists every member of the mesh, so it cannot identify which
+        one answered; this endpoint names the speaker we are actually talking to.
+        """
+        data = await self._get("/mesh/node")
+        return data.get("node_id")
+
     async def get_nodes(self) -> list[dict]:
         data = await self._get("/1/mesh/nodes")
         return data.get("nodes", [])
