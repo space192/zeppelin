@@ -9,6 +9,7 @@ import aiohttp
 
 from .const import (
     DEFAULT_PORT,
+    PROPERTY_AUDIOTILE,
     PROPERTY_AUDIOTILE_ARTWORK,
     PROPERTY_DEVICE_INFO,
     PROPERTY_LIGHT_STATE,
@@ -178,6 +179,9 @@ class BwZeppelinApiClient:
 
     async def request_artwork(self) -> None:
         await self._post_stated("get_property", {"property": PROPERTY_AUDIOTILE_ARTWORK})
+
+    async def request_audiotile(self) -> None:
+        await self._post_stated("get_property", {"property": PROPERTY_AUDIOTILE})
 
     async def get_device_info(self) -> dict:
         data = await self._post_stated("get_property", {"property": PROPERTY_DEVICE_INFO})

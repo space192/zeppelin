@@ -40,6 +40,7 @@ class BwZeppelinWebSocket:
     def __init__(self, host: str, node_id: str | None = None) -> None:
         self._host = host
         self._node_id = node_id
+        self.connected = asyncio.Event()
         self._url = f"wss://{host}:{DEFAULT_PORT}/messages"
         self._ssl_context = ssl.SSLContext(ssl.PROTOCOL_TLS_CLIENT)
         self._ssl_context.check_hostname = False
@@ -99,6 +100,7 @@ class BwZeppelinWebSocket:
             )
             try:
                 _LOGGER.debug("WebSocket connected to %s", self._host)
+                self.connected.set()
                 async for msg in ws:
                     if self._stop_event.is_set():
                         return
@@ -107,6 +109,7 @@ class BwZeppelinWebSocket:
                     elif msg.type in (aiohttp.WSMsgType.CLOSED, aiohttp.WSMsgType.ERROR):
                         break
             finally:
+                self.connected.clear()
                 if not ws.closed:
                     await ws.close()
         finally:
