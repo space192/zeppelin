@@ -154,6 +154,8 @@ class BwZeppelinApiClient:
             value={"type": "i64_", "i64_": int(microseconds)},
         )
         self._streamsdk_check_error(data, SETTING_AUDIO_OUTPUT_DELAY)
+
+    async def get_version(self) -> str:
         data = await self._get("/software/version")
         return data.get("version", "unknown")
 
